@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"discordBot/handlers"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,6 +21,22 @@ type AI struct {
 
 func CreateNewAI(client openai.Client) *AI {
 	return &AI{client: client, ctx: context.Background()}
+}
+
+type ComponentsJson struct {
+	Component []GetValueJSON `json:"components"`
+}
+
+type GetValueJSON struct {
+	Value string `json:"value"`
+}
+
+func CreateNewComponentsJson() *ComponentsJson {
+	return &ComponentsJson{}
+}
+
+func CreateNewGetValueJSON() *GetValueJSON {
+	return &GetValueJSON{Value: ""}
 }
 
 func main() {
@@ -43,7 +60,62 @@ func main() {
 		fmt.Println("Bot is ready!")
 	})
 
-	session.AddHandler(handlers.FirstCommand)
+	//session.AddHandler(handlers.FirstCommand)
+	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		switch i.Type {
+		case discordgo.InteractionApplicationCommand:
+			if h, ok := handlers.CommandHandlers[i.ApplicationCommandData().Name]; ok {
+				h(s, i)
+			}
+		case discordgo.InteractionModalSubmit:
+			data := i.ModalSubmitData()
+
+			if data.CustomID == "setup server modal" {
+				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Хорошо, работаю!",
+						Flags:   discordgo.MessageFlagsEphemeral,
+					},
+				})
+				if err != nil {
+					panic(err)
+				}
+				textAmntByte, err := data.Components[0].MarshalJSON()
+				if err != nil {
+					fmt.Println(1)
+					panic(err)
+				}
+				textDescByte, err := data.Components[1].MarshalJSON()
+				if err != nil {
+					fmt.Println(2)
+					panic(err)
+				}
+				voiceAmntByte, err := data.Components[2].MarshalJSON()
+				if err != nil {
+					fmt.Println(3)
+					panic(err)
+				}
+				voiceDescByte, err := data.Components[3].MarshalJSON()
+				if err != nil {
+					fmt.Println(4)
+					panic(err)
+				}
+				fmt.Println("byte to string:", string(textAmntByte))
+
+				textAmntComponent := CreateNewComponentsJson()
+				json.Unmarshal(textAmntByte, &textAmntComponent)
+				textDescComponent := CreateNewComponentsJson()
+				json.Unmarshal(textDescByte, &textDescComponent)
+				voiceAmntComponent := CreateNewComponentsJson()
+				json.Unmarshal(voiceAmntByte, &voiceAmntComponent)
+				voiceDescComponent := CreateNewComponentsJson()
+				json.Unmarshal(voiceDescByte, &voiceDescComponent)
+
+				handlers.CreateChannels(s, i, textAmntComponent.Component[0].Value, textDescComponent.Component[0].Value, voiceAmntComponent.Component[0].Value, voiceDescComponent.Component[0].Value)
+			}
+		}
+	})
 
 	session.Identify.Intents = discordgo.IntentGuildMessages
 
@@ -52,6 +124,15 @@ func main() {
 		fmt.Printf("Error while trying to open session: %v", err)
 	}
 	defer session.Close()
+
+	registeredCommands := make([]*discordgo.ApplicationCommand, len(handlers.Commands))
+	for i, v := range handlers.Commands {
+		cmd, err := session.ApplicationCommandCreate(session.State.User.ID, client_id, v)
+		if err != nil {
+			fmt.Printf("Cannot create '%v' command: %v", v.Name, err)
+		}
+		registeredCommands[i] = cmd
+	}
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)

@@ -17,7 +17,7 @@
 Для установки необходимо в терминале прописать
 
 ```
-go get sunixssu/DiscordBotForServerCreation
+go get github.com/sunixssu/DiscordBotForServerCreation
 ```
 
 # Использование

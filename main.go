@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -62,6 +63,7 @@ func main() {
 
 	//session.AddHandler(handlers.FirstCommand)
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		fmt.Println("type:", i.Type)
 		switch i.Type {
 		case discordgo.InteractionApplicationCommand:
 			if h, ok := handlers.CommandHandlers[i.ApplicationCommandData().Name]; ok {
@@ -71,13 +73,6 @@ func main() {
 			data := i.ModalSubmitData()
 
 			if data.CustomID == "setup server modal" {
-				err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseChannelMessageWithSource,
-					Data: &discordgo.InteractionResponseData{
-						Content: "Хорошо, работаю!",
-						Flags:   discordgo.MessageFlagsEphemeral,
-					},
-				})
 				if err != nil {
 					panic(err)
 				}
@@ -101,7 +96,6 @@ func main() {
 					fmt.Println(4)
 					panic(err)
 				}
-				fmt.Println("byte to string:", string(textAmntByte))
 
 				textAmntComponent := CreateNewComponentsJson()
 				json.Unmarshal(textAmntByte, &textAmntComponent)
@@ -112,7 +106,54 @@ func main() {
 				voiceDescComponent := CreateNewComponentsJson()
 				json.Unmarshal(voiceDescByte, &voiceDescComponent)
 
-				handlers.CreateChannels(s, i, textAmntComponent.Component[0].Value, textDescComponent.Component[0].Value, voiceAmntComponent.Component[0].Value, voiceDescComponent.Component[0].Value)
+				textAmntComponentInt, err := strconv.Atoi(textAmntComponent.Component[0].Value)
+				voiceAmntComponentInt, err := strconv.Atoi(voiceAmntComponent.Component[0].Value)
+
+				if err != nil {
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Число каналов должно быть числом",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+				} else if textAmntComponentInt < 0 || voiceAmntComponentInt < 0 {
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Я не могу создать отрицательное число каналов",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+				} else if textAmntComponentInt == 0 && voiceAmntComponentInt == 0 {
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Ну.. окей, я ничего не буду делать, раз ты каналы не хочешь видеть",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+					handlers.CreateChannels(s, i, textAmntComponent.Component[0].Value, textDescComponent.Component[0].Value, voiceAmntComponent.Component[0].Value, voiceDescComponent.Component[0].Value)
+				} else {
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Требования понял, создаю каналы!",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+					handlers.CreateChannels(s, i, textAmntComponent.Component[0].Value, textDescComponent.Component[0].Value, voiceAmntComponent.Component[0].Value, voiceDescComponent.Component[0].Value)
+				}
+			} else if data.CustomID == "delete server modal" {
+				if err != nil {
+					err = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+						Type: discordgo.InteractionResponseChannelMessageWithSource,
+						Data: &discordgo.InteractionResponseData{
+							Content: "Я тя понял, тестируй на здоровье",
+							Flags:   discordgo.MessageFlagsEphemeral,
+						},
+					})
+				}
 			}
 		}
 	})

@@ -38,7 +38,7 @@ var (
 	Commands = []*discordgo.ApplicationCommand{
 		{
 			Name:        "setup-channel",
-			Description: "creates channels based on your prompt",
+			Description: "Создает заданное количество текстовых и голосовых каналов по определенному описанию",
 		},
 	}
 
@@ -48,7 +48,7 @@ var (
 				Type: discordgo.InteractionResponseModal,
 				Data: &discordgo.InteractionResponseData{
 					CustomID: "setup server modal",
-					Title:    "Первичная информация",
+					Title:    "Требования по каналам",
 					Flags:    discordgo.MessageFlagsIsComponentsV2,
 					Components: []discordgo.MessageComponent{
 						discordgo.ActionsRow{
@@ -114,9 +114,22 @@ func CreateChannels(s *discordgo.Session, interact *discordgo.InteractionCreate,
 	client := &http.Client{}
 
 	quest_p1 := "I am giving you my requirements for the server in Discord. I want you to write me the names of the channels that I need to specify."
-	quest_p2 := "My requirement is for " + textAmount + " text channels and " + voiceAmount + " voice channels. Also I want to see emojis in brackets, that would suite the purpose of channel"
-	quest_p3 := "My requirements for text channels is: " + textDesc + ", and for voice channels: " + voiceDesc
-	quest_p4 := "Please write me only the names of the channels that you create in single line, at first - text channels, than - voice channels. For example: [emoji]text1, [emoji]text2, [emoji]text3, [emoji]voice1, [emoji]voice2."
+	quest_p2 := ``
+	quest_p3 := ``
+	quest_p4 := ``
+	if textAmount == "0" && voiceAmount != "0" {
+		quest_p2 = "My requirement is for " + voiceAmount + " voice channels. Also I want to see emojis in brackets, that would suite the purpose of channel"
+		quest_p3 = "My requirements for voice channels is: " + voiceDesc
+		quest_p4 = "Please write me only the names of the channels that you create in single line. For example: [emoji]voice1, [emoji]voice2."
+	} else if voiceAmount == "0" && textAmount != "0" {
+		quest_p2 = "My requirement is for " + textAmount + " text channels. Also I want to see emojis in brackets, that would suite the purpose of channel"
+		quest_p3 = "My requirements for text channels is: " + textDesc
+		quest_p4 = "Please write me only the names of the channels that you create in single line. For example: [emoji]text1, [emoji]text2, [emoji]text3"
+	} else {
+		quest_p2 = "My requirement is for " + textAmount + "text channels and " + voiceAmount + " voice channels. Also I want to see emojis in brackets, that would suite the purpose of channel"
+		quest_p3 = "My requirements for text channels is: " + textDesc + ", and for voice channels: " + voiceDesc
+		quest_p4 = "Please write me only the names of the channels that you create in single line, at first - text channels, than - voice channels. For example: [emoji]text1, [emoji]text2, [emoji]text3, [emoji]voice1, [emoji]voice2."
+	}
 	/*
 		question := `I am giving you my requirements for the server in Discord. I want you to write me the names of the channels that I need to specify.
 			 	My requirement is for three channels, one for communication and the other for important matters, the third one for funny pictures.
@@ -157,16 +170,37 @@ func CreateChannels(s *discordgo.Session, interact *discordgo.InteractionCreate,
 	aiReponseStr = strings.Replace(aiReponseStr, "\n", ",", -1)
 	aiReponseArr := strings.Split(aiReponseStr, ",")
 
-	// Создаю категорию с заданным названием
-	s.GuildChannelCreate(interact.GuildID, "Main Category", discordgo.ChannelTypeGuildCategory)
-	channels, err := s.GuildChannels(interact.GuildID)
-	if err != nil {
-		fmt.Println("can't get channels list")
+	number_of_text_channels_int, err := strconv.Atoi(textAmount)
+	number_of_voice_channels_int, err := strconv.Atoi(voiceAmount)
+
+	var channels []*discordgo.Channel
+
+	if number_of_text_channels_int > 0 {
+		s.GuildChannelCreate(interact.GuildID, "Text", discordgo.ChannelTypeGuildCategory)
+		channels, err = s.GuildChannels(interact.GuildID)
+		if err != nil {
+			fmt.Println("can't get channels list")
+		}
+	}
+	if number_of_voice_channels_int > 0 {
+		s.GuildChannelCreate(interact.GuildID, "Voice", discordgo.ChannelTypeGuildCategory)
+		channels, err = s.GuildChannels(interact.GuildID)
+		if err != nil {
+			fmt.Println("can't get channels list")
+		}
 	}
 
+	/*
+		// Создаю категорию с заданным названием
+		s.GuildChannelCreate(interact.GuildID, "Main Category", discordgo.ChannelTypeGuildCategory)
+		channels, err = s.GuildChannels(interact.GuildID)
+		if err != nil {
+			fmt.Println("can't get channels list")
+		}
+	*/
+
 	for _, c := range channels {
-		if c.Name == "Main Category" {
-			number_of_text_channels_int, err := strconv.Atoi(textAmount)
+		if c.Name == "Text" {
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -178,10 +212,11 @@ func CreateChannels(s *discordgo.Session, interact *discordgo.InteractionCreate,
 				}
 				s.GuildChannelCreateComplex(interact.GuildID, channelData)
 			}
-			number_of_voice_channels_int, err := strconv.Atoi(voiceAmount)
 			if err != nil {
 				fmt.Println(err)
 			}
+		}
+		if c.Name == "Voice" {
 			for i := 0; i < number_of_voice_channels_int; i++ {
 				channelData := discordgo.GuildChannelCreateData{
 					Name:     aiReponseArr[number_of_text_channels_int+i],
